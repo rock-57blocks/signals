@@ -9,7 +9,7 @@ import {
 import type { ReadonlySignal } from "@preact/signals";
 import { createElement, createRef, render, createContext } from "preact";
 import type { ComponentChildren, FunctionComponent } from "preact";
-import { useContext, useRef, useState } from "preact/hooks";
+import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import { setupRerender, act } from "preact/test-utils";
 
 const sleep = (ms?: number) => new Promise(r => setTimeout(r, ms));
@@ -827,6 +827,39 @@ describe("@preact/signals", () => {
 
 			expect(spy).not.to.have.been.called;
 			expect(cleanup).to.have.been.calledOnceWith("foo", child);
+		});
+
+		it.only("should render src correctly", async () => {
+			function App() {
+				const videoRef = useRef<HTMLVideoElement>(null);
+				const hlsUrl = useSignal("");
+
+				useEffect(() => {
+					const getHlsUrl = async () => {
+						// this is the key issue here, if there is a promise in the useEffect, the test will fail
+						const url = await new Promise<string>(resolve => {
+							resolve("https://hlsurl.com/");
+						});
+						console.log("url changed", url);
+						hlsUrl.value = url;
+					};
+
+					getHlsUrl();
+				}, []);
+
+				useSignalEffect(() => {
+					console.log("call useSignalEffect with hlsUrl.value", hlsUrl.value);
+					videoRef.current!.src = hlsUrl.value;
+				});
+
+				return <video data-testid="video-player" ref={videoRef}></video>;
+			}
+
+			await act(() => {
+				render(<App />, scratch);
+			});
+			const video = scratch.firstChild as HTMLVideoElement;
+			expect(video.src).to.equal("https://hlsurl.com/");
 		});
 	});
 });
